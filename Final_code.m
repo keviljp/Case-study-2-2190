@@ -261,3 +261,111 @@ ComparisonTable = table((1:num_eigenstates)', quantum_numbers(:,1), quantum_numb
 
 disp('Comparison Table:');
 disp(ComparisonTable);
+
+%% Task 3, Step 2 & 3
+% Numerical and Analytical Solution for 2D Quantum Harmonic Oscillator
+clear; clc; close all;
+
+%%
+% Constants
+hbar = 1;          % Planck's constant (reduced)
+m = 1;             % Mass
+omega = 1;         % Oscillator frequency
+L = 5;             % Domain size [-L, L]
+N = 150;            % Number of grid points per dimension
+h = 2*L/(N+1);     % Grid spacing
+num_eigenstates = 6; % Number of eigenstates to compute
+
+% Grid
+x = linspace(-L, L, N+2); % include boundary points
+y = linspace(-L, L, N+2);
+[X, Y] = meshgrid(x, y);
+
+%% Build Numerical Hamiltonian
+% Laplacian operator
+e = ones(N,1);
+D = spdiags([e -2*e e], -1:1, N, N);
+I = speye(N);
+Lap = (kron(D, I) + kron(I, D)) / h^2;
+T = -(hbar^2)/(2*m) * Lap;
+
+% Potential matrix
+V_diag = 0.5 * m * omega^2 * (X(2:end-1,2:end-1).^2 + Y(2:end-1,2:end-1).^2);
+V_vec = V_diag(:);
+V = spdiags(V_vec, 0, N^2, N^2);
+
+% Full Hamiltonian
+H = T + V;
+
+% Solve eigenvalue problem
+[Psi, E_matrix] = eigs(H, num_eigenstates, 'smallestreal');
+E_numerical = diag(E_matrix);
+
+% Normalize numerical wavefunctions properly
+psi_numerical = cell(num_eigenstates,1);
+max_prob_numerical = zeros(num_eigenstates,1);
+for k = 1:num_eigenstates
+    psi_vec = Psi(:,k);
+    psi_vec = psi_vec / sqrt(h^2 * sum(abs(psi_vec).^2));
+    psi_2D = reshape(psi_vec, [N, N]);
+    psi_full = zeros(N+2, N+2);
+    psi_full(2:end-1,2:end-1) = psi_2D;
+    psi_numerical{k} = abs(psi_full).^2;
+    max_prob_numerical(k) = max(psi_numerical{k}(:));
+end
+
+for k = 1:3
+    figure;
+    subplot(1,2,1);
+    contour(X, Y, psi_numerical{2*k-1}, 20);
+    colorbar;
+    axis equal;
+    title(['Numerical |\psi_{', num2str(2*k-1), '}|^2']);
+    subplot(1,2,2);
+    contour(X, Y, psi_numerical{2*k}, 20);
+    colorbar;
+    axis equal;
+    title(['Numerical |\psi_{', num2str(2*k), '}|^2']);
+end
+
+%% Analytical Solution
+quantum_numbers = [0 0; 0 1; 1 0; 0 2; 2 0; 1 1];
+
+psi_analytical = cell(num_eigenstates,1);
+E_analytical = zeros(num_eigenstates,1);
+max_prob_analytical = zeros(num_eigenstates,1);
+
+alpha = sqrt(m*omega/hbar);
+
+for k = 1:num_eigenstates
+    nx = quantum_numbers(k,1);
+    ny = quantum_numbers(k,2);
+    
+    Hx = hermiteH(nx, alpha*X);
+    Hy = hermiteH(ny, alpha*Y);
+    
+    psi = (alpha/sqrt(pi)) * (1/sqrt(2^nx * factorial(nx))) * (1/sqrt(2^ny * factorial(ny))) .* Hx .* Hy .* exp(-alpha^2 * (X.^2 + Y.^2)/2);
+    prob_density = abs(psi).^2;
+    psi_analytical{k} = prob_density;
+    max_prob_analytical(k) = max(prob_density(:));
+    E_analytical(k) = hbar*omega*(nx + ny + 1);
+end
+
+%% Plotting Analytical vs Numerical side by side
+for k = 1:num_eigenstates
+    figure;
+    % Analytical
+    subplot(1,2,1);
+    contour(X, Y, psi_analytical{k}, 20);
+    colorbar;
+    axis equal;
+    title(['Analytical |\psi_{', num2str(quantum_numbers(k,1)), ',', num2str(quantum_numbers(k,2)), '}(x,y)|^2']);
+    
+    % Numerical
+    subplot(1,2,2);
+    contour(X, Y, psi_numerical{k}, 20);
+    colorbar;
+    axis equal;
+    title(['Numerical |\psi_{', num2str(quantum_numbers(k,1)), ',', num2str(quantum_numbers(k,2)), '}(x,y)|^2']);
+end
+
